@@ -82,8 +82,8 @@ class Venue(db.Model):
         dict_obj['genre_ids'] = [i.id for i in self.genres]
         dict_obj['upcoming_shows_count'] = self.upcoming_show_count()
         dict_obj['past_shows_count'] = self.past_show_count()
-        dict_obj['past_shows'] = [i.show_artist_dict() for i in self.shows if i.upcoming_show() == False]
-        dict_obj['upcoming_shows'] = [i.show_artist_dict() for i in self.shows if i.upcoming_show()]
+        dict_obj['past_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show() == False]
+        dict_obj['upcoming_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show()]
         return dict_obj
 #    # TODO: implement any missing fields, as a database migration using Flask-Migrate
 #
@@ -123,8 +123,8 @@ class Artist(db.Model):
         dict_obj['genre_ids'] = [i.id for i in self.genres]
         dict_obj['upcoming_shows_count'] = self.upcoming_show_count()
         dict_obj['past_shows_count'] = self.past_show_count()
-        dict_obj['past_shows'] = [i.show_venue_dict() for i in self.shows if i.upcoming_show() == False]
-        dict_obj['upcoming_shows'] = [i.show_venue_dict() for i in self.shows if i.upcoming_show()]
+        dict_obj['past_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show() == False]
+        dict_obj['upcoming_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show()]
         return dict_obj
 
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
@@ -148,13 +148,10 @@ class Show(db.Model):
         else:
             return False
     
-    def show_artist_dict(self):
-        dict_obj = {'artist_' + c.key: getattr(self.artist, c.key) for c in inspect(self.artist).mapper.column_attrs}
-        dict_obj['start_time'] = self.start_time.strftime('%Y-%m-%d %H:%M:%S')
-        return dict_obj
-    
-    def show_venue_dict(self):
-        dict_obj = {'venue_' + c.key: getattr(self.venue, c.key) for c in inspect(self.venue).mapper.column_attrs}
+    def show_dict(self):
+        venue_dict = {'venue_' + c.key: getattr(self.venue, c.key) for c in inspect(self.venue).mapper.column_attrs}
+        artist_dict = {'artist_' + c.key: getattr(self.artist, c.key) for c in inspect(self.artist).mapper.column_attrs}
+        dict_obj = {**venue_dict, **artist_dict}
         dict_obj['start_time'] = self.start_time.strftime('%Y-%m-%d %H:%M:%S')
         return dict_obj
 #----------------------------------------------------------------------------#
@@ -197,18 +194,12 @@ def venues():
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for Hop should return "The Musical Hop".
-  # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
-  response={
-    "count": 1,
-    "data": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
+    # seach for Hop should return "The Musical Hop".
+    # search for "Music" should return "The Musical Hop" and "Park Square Live Music & Coffee"
+    search_term = request.form.get('search_term', '')
+    response = {'data':[i.venue_dict() for i in Venue.query.filter(Venue.name.ilike(f'%{search_term}%')).all()]}
+    response['count'] = len(response['data'])
+    return render_template('pages/search_venues.html', results=response, search_term=request.form.get('search_term', ''))
 
 @app.route('/venues/<int:venue_id>')
 def show_venue(venue_id):
@@ -286,18 +277,12 @@ def artists():
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
-  # TODO: implement search on artists with partial string search. Ensure it is case-insensitive.
-  # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
-  # search for "band" should return "The Wild Sax Band".
-  response={
-    "count": 1,
-    "data": [{
-      "id": 4,
-      "name": "Guns N Petals",
-      "num_upcoming_shows": 0,
-    }]
-  }
-  return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
+    # seach for "A" should return "Guns N Petals", "Matt Quevado", and "The Wild Sax Band".
+    # search for "band" should return "The Wild Sax Band".
+    search_term = request.form.get('search_term', '')
+    response = {'data':[i.artist_dict() for i in Artist.query.filter(Artist.name.ilike(f'%{search_term}%')).all()]}
+    response['count'] = len(response['data'])
+    return render_template('pages/search_artists.html', results=response, search_term=request.form.get('search_term', ''))
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
@@ -450,9 +435,9 @@ def create_artist_submission():
                           image_link = form.image_link.data,
                           facebook_link = form.facebook_link.data,
                           genres = genre_data,
-                          #website = form.website.data
-                          seeking_venue = True #form.seeking_talent.data,
-                          #seeking_description = form.seeking_description.data
+                          website = form.website.data,
+                          seeking_venue = form.seeking_talent.data,
+                          seeking_description = form.seeking_description.data
                           )
             db.session.add(artist)
             db.session.commit()
@@ -478,44 +463,7 @@ def create_artist_submission():
 @app.route('/shows')
 def shows():
   # displays list of shows at /shows
-  # TODO: replace with real venues data.
-  #       num_shows should be aggregated based on number of upcoming shows per venue.
-  data=[{
-    "venue_id": 1,
-    "venue_name": "The Musical Hop",
-    "artist_id": 4,
-    "artist_name": "Guns N Petals",
-    "artist_image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-    "start_time": "2019-05-21T21:30:00.000Z"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 5,
-    "artist_name": "Matt Quevedo",
-    "artist_image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-    "start_time": "2019-06-15T23:00:00.000Z"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 6,
-    "artist_name": "The Wild Sax Band",
-    "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "start_time": "2035-04-01T20:00:00.000Z"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 6,
-    "artist_name": "The Wild Sax Band",
-    "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "start_time": "2035-04-08T20:00:00.000Z"
-  }, {
-    "venue_id": 3,
-    "venue_name": "Park Square Live Music & Coffee",
-    "artist_id": 6,
-    "artist_name": "The Wild Sax Band",
-    "artist_image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "start_time": "2035-04-15T20:00:00.000Z"
-  }]
+  data = [i.show_dict() for i in Show.query.all()]        
   return render_template('pages/shows.html', shows=data)
 
 @app.route('/shows/create')
