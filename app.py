@@ -12,7 +12,7 @@ from flask_migrate import Migrate
 import logging
 from logging import Formatter, FileHandler
 from flask_wtf import Form
-from forms import *
+from forms import VenueForm, ArtistForm, ShowForm
 from sqlalchemy.sql import func
 from sqlalchemy import case, inspect
 #----------------------------------------------------------------------------#
@@ -82,8 +82,8 @@ class Venue(db.Model):
         dict_obj['genre_ids'] = [i.id for i in self.genres]
         dict_obj['upcoming_shows_count'] = self.upcoming_show_count()
         dict_obj['past_shows_count'] = self.past_show_count()
-        dict_obj['past_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show() == False]
-        dict_obj['upcoming_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show()]
+        dict_obj['past_shows'] = [i.show_artist_dict() for i in self.shows if i.upcoming_show() == False]
+        dict_obj['upcoming_shows'] = [i.show_artist_dict() for i in self.shows if i.upcoming_show()]
         return dict_obj
 #    # TODO: implement any missing fields, as a database migration using Flask-Migrate
 #
@@ -111,6 +111,22 @@ class Artist(db.Model):
     def __repr__(self):
         return f'<{self.id} {self.name}>'
 
+    def upcoming_show_count(self):
+        return sum([1 if i.upcoming_show() else 0 for i in self.shows])
+    
+    def past_show_count(self):
+        return sum([0 if i.upcoming_show() else 1 for i in self.shows])
+    
+    def artist_dict(self):
+        dict_obj = {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
+        dict_obj['genres'] = [i.name for i in self.genres]
+        dict_obj['genre_ids'] = [i.id for i in self.genres]
+        dict_obj['upcoming_shows_count'] = self.upcoming_show_count()
+        dict_obj['past_shows_count'] = self.past_show_count()
+        dict_obj['past_shows'] = [i.show_venue_dict() for i in self.shows if i.upcoming_show() == False]
+        dict_obj['upcoming_shows'] = [i.show_venue_dict() for i in self.shows if i.upcoming_show()]
+        return dict_obj
+
     # TODO: implement any missing fields, as a database migration using Flask-Migrate
 
 # TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
@@ -132,8 +148,13 @@ class Show(db.Model):
         else:
             return False
     
-    def show_dict(self):
+    def show_artist_dict(self):
         dict_obj = {'artist_' + c.key: getattr(self.artist, c.key) for c in inspect(self.artist).mapper.column_attrs}
+        dict_obj['start_time'] = self.start_time.strftime('%Y-%m-%d %H:%M:%S')
+        return dict_obj
+    
+    def show_venue_dict(self):
+        dict_obj = {'venue_' + c.key: getattr(self.venue, c.key) for c in inspect(self.venue).mapper.column_attrs}
         dict_obj['start_time'] = self.start_time.strftime('%Y-%m-%d %H:%M:%S')
         return dict_obj
 #----------------------------------------------------------------------------#
@@ -260,18 +281,8 @@ def delete_venue(venue_id):
 #  ----------------------------------------------------------------
 @app.route('/artists')
 def artists():
-  # TODO: replace with real data returned from querying the database
-  data=[{
-    "id": 4,
-    "name": "Guns N Petals",
-  }, {
-    "id": 5,
-    "name": "Matt Quevedo",
-  }, {
-    "id": 6,
-    "name": "The Wild Sax Band",
-  }]
-  return render_template('pages/artists.html', artists=data)
+    data = Artist.query.order_by('name').all()
+    return render_template('pages/artists.html', artists=data)
 
 @app.route('/artists/search', methods=['POST'])
 def search_artists():
@@ -291,128 +302,74 @@ def search_artists():
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
   # shows the venue page with the given venue_id
-  # TODO: replace with real venue data from the venues table, using venue_id
-  data1={
-    "id": 4,
-    "name": "Guns N Petals",
-    "genres": ["Rock n Roll"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "326-123-5000",
-    "website": "https://www.gunsnpetalsband.com",
-    "facebook_link": "https://www.facebook.com/GunsNPetals",
-    "seeking_venue": True,
-    "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
-    "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80",
-    "past_shows": [{
-      "venue_id": 1,
-      "venue_name": "The Musical Hop",
-      "venue_image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60",
-      "start_time": "2019-05-21T21:30:00.000Z"
-    }],
-    "upcoming_shows": [],
-    "past_shows_count": 1,
-    "upcoming_shows_count": 0,
-  }
-  data2={
-    "id": 5,
-    "name": "Matt Quevedo",
-    "genres": ["Jazz"],
-    "city": "New York",
-    "state": "NY",
-    "phone": "300-400-5000",
-    "facebook_link": "https://www.facebook.com/mattquevedo923251523",
-    "seeking_venue": False,
-    "image_link": "https://images.unsplash.com/photo-1495223153807-b916f75de8c5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=334&q=80",
-    "past_shows": [{
-      "venue_id": 3,
-      "venue_name": "Park Square Live Music & Coffee",
-      "venue_image_link": "https://images.unsplash.com/photo-1485686531765-ba63b07845a7?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=747&q=80",
-      "start_time": "2019-06-15T23:00:00.000Z"
-    }],
-    "upcoming_shows": [],
-    "past_shows_count": 1,
-    "upcoming_shows_count": 0,
-  }
-  data3={
-    "id": 6,
-    "name": "The Wild Sax Band",
-    "genres": ["Jazz", "Classical"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "432-325-5432",
-    "seeking_venue": False,
-    "image_link": "https://images.unsplash.com/photo-1558369981-f9ca78462e61?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=794&q=80",
-    "past_shows": [],
-    "upcoming_shows": [{
-      "venue_id": 3,
-      "venue_name": "Park Square Live Music & Coffee",
-      "venue_image_link": "https://images.unsplash.com/photo-1485686531765-ba63b07845a7?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=747&q=80",
-      "start_time": "2035-04-01T20:00:00.000Z"
-    }, {
-      "venue_id": 3,
-      "venue_name": "Park Square Live Music & Coffee",
-      "venue_image_link": "https://images.unsplash.com/photo-1485686531765-ba63b07845a7?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=747&q=80",
-      "start_time": "2035-04-08T20:00:00.000Z"
-    }, {
-      "venue_id": 3,
-      "venue_name": "Park Square Live Music & Coffee",
-      "venue_image_link": "https://images.unsplash.com/photo-1485686531765-ba63b07845a7?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=747&q=80",
-      "start_time": "2035-04-15T20:00:00.000Z"
-    }],
-    "past_shows_count": 0,
-    "upcoming_shows_count": 3,
-  }
-  data = list(filter(lambda d: d['id'] == artist_id, [data1, data2, data3]))[0]
+  artist_data = Artist.query.get(artist_id)
+  data = artist_data.artist_dict()
   return render_template('pages/show_artist.html', artist=data)
 
 #  Update
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
-  form = ArtistForm()
-  artist={
-    "id": 4,
-    "name": "Guns N Petals",
-    "genres": ["Rock n Roll"],
-    "city": "San Francisco",
-    "state": "CA",
-    "phone": "326-123-5000",
-    "website": "https://www.gunsnpetalsband.com",
-    "facebook_link": "https://www.facebook.com/GunsNPetals",
-    "seeking_venue": True,
-    "seeking_description": "Looking for shows to perform at in the San Francisco Bay Area!",
-    "image_link": "https://images.unsplash.com/photo-1549213783-8284d0336c4f?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=300&q=80"
-  }
-  # TODO: populate form with fields from artist with ID <artist_id>
-  return render_template('forms/edit_artist.html', form=form, artist=artist)
+    form = ArtistForm()
+    genre_choices = Genre.query.order_by('id').all()
+    form.genres.choices = [(i.id, i.name) for i in genre_choices]
+    artist = Artist.query.get(artist_id)
+    #populating form with values from Artist
+    form.name.default = artist.name
+    form.genres.default = [i.id for i in artist.genres]
+    form.city.default = artist.city
+    form.state.default = artist.state
+    form.phone.default = artist.phone
+    form.website.default = artist.website
+    form.facebook_link.default = artist.facebook_link
+    form.seeking_venue.default = artist.seeking_venue
+    form.seeking_description.default = artist.seeking_description
+    form.image_link.default = artist.image_link
+    form.process()
+    return render_template('forms/edit_artist.html', form=form, artist=artist)
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
-  # TODO: take values from the form submitted, and update existing
-  # artist record with ID <artist_id> using the new attributes
-
-  return redirect(url_for('show_artist', artist_id=artist_id))
+    form = ArtistForm(request.form)
+    genre_choices = Genre.query.order_by('id').all()
+    form.genres.choices = [(i.id, i.name) for i in genre_choices]
+    artist = Artist.query.get(artist_id)
+    error = False 
+    if form.validate_on_submit():
+        try:
+            genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
+            artistobj = db.session.query(Artist).get(artist_id)
+            artistobj.genres = []
+            artistobj.name = form.name.data
+            artistobj.city = form.city.data
+            artistobj.state = form.state.data
+            artistobj.phone = form.phone.data
+            artistobj.image_link= form.image_link.data
+            artistobj.facebook_link = form.facebook_link.data
+            artistobj.genres = genre_data
+            artistobj.website = form.website.data
+            artistobj.seeking_venue = form.seeking_venue.data
+            artistobj.seeking_description = form.seeking_description.data
+            db.session.flush()
+            db.session.commit()
+        except:
+            db.session.rollback()
+            error = True
+        finally:
+            db.session.close()
+        if error:
+            flash('An error occurred. Artist ' + form.name.data + ' could not be edited.')
+            return render_template('forms/edit_artist.html', form=form, artist=artist)
+        else:
+            return redirect(url_for('show_artist', artist_id=artist_id))
+    else:
+        return render_template('forms/edit_artist.html', form=form, artist=artist)
 
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
     form = VenueForm()
     genre_choices = Genre.query.order_by('id').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices]
-    venue={
-            "id": 1,
-            "name": "The Musical Hop",
-            "genres": ["Jazz", "Reggae", "Swing", "Classical", "Folk"],
-            "address": "1015 Folsom Street",
-            "city": "San Francisco",
-            "state": "CA",
-            "phone": "123-123-1234",
-            "website": "https://www.themusicalhop.com",
-            "facebook_link": "https://www.facebook.com/TheMusicalHop",
-            "seeking_talent": True,
-            "seeking_description": "We are on the lookout for a local artist to play every two weeks. Please call us.",
-            "image_link": "https://images.unsplash.com/photo-1543900694-133f37abaaa5?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=crop&w=400&q=60"
-            }
     venue = Venue.query.get(venue_id)
     #populating form with values from venue
     form.name.default = venue.name

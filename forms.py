@@ -183,5 +183,14 @@ class ArtistForm(Form):
     facebook_link = StringField(
         'facebook_link', validators=[URL(), Optional()]
     )
+    website = StringField(
+        'website', validators=[URL(), Optional()]
+    )
+    seeking_venue = BooleanField(
+        'seeking_venue'
+    )
+    seeking_description = StringField(
+        'seeking_description'
+    )
 
 # TODO IMPLEMENT NEW ARTIST FORM AND NEW SHOW FORM

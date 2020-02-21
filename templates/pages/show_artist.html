@@ -38,6 +38,8 @@
 			<i class="fas fa-moon"></i> Not currently seeking performance venues
 		</p>
 		{% endif %}
+		<br><br>
+		<a href="{{ url_for( 'edit_artist' , artist_id= artist.id ) }}"><button class="btn btn-primary btn-lg">Edit Artist</button></a>
 	</div>
 	<div class="col-sm-6">
 		<img src="{{ artist.image_link }}" alt="Venue Image" />
