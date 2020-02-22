@@ -5,7 +5,7 @@
 import json
 import dateutil.parser
 import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for
+from flask import Flask, render_template, request, Response, flash, redirect, url_for, jsonify
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
@@ -29,7 +29,7 @@ migrate = Migrate(app, db)
 #----------------------------------------------------------------------------#
 
 venue_genres = db.Table('venue_genres',
-    db.Column('venue_id', db.Integer, db.ForeignKey('Venue.id'), primary_key=True),
+    db.Column('venue_id', db.Integer, db.ForeignKey('Venue.id', onupdate="CASCADE", ondelete="CASCADE"), primary_key=True),
     db.Column('genre_id', db.Integer, db.ForeignKey('Genre.id'), primary_key=True)
 )
 
@@ -64,8 +64,8 @@ class Venue(db.Model):
     seeking_talent = db.Column(db.Boolean, nullable=False)
     seeking_description = db.Column(db.String, nullable=True)
     shows = db.relationship('Show', backref='venue')
-    genres = db.relationship('Genre', secondary=venue_genres,
-                             backref=db.backref('genres', lazy=True, cascade='all'))
+    genres = db.relationship('Genre', secondary=venue_genres, cascade='all, delete',
+                             backref=db.backref('genres', lazy=True))
     
     def __repr__(self):
         return f'<{self.id} {self.name}>'
@@ -235,9 +235,9 @@ def create_venue_submission():
                           image_link = form.image_link.data,
                           facebook_link = form.facebook_link.data,
                           genres = genre_data,
-                          #website = form.website.data
-                          seeking_talent = True #form.seeking_talent.data,
-                          #seeking_description = form.seeking_description.data
+                          website = form.website.data,
+                          seeking_talent = form.seeking_talent.data,
+                          seeking_description = form.seeking_description.data
                           )
             db.session.add(venue)
             db.session.commit()
@@ -261,12 +261,17 @@ def create_venue_submission():
 
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
-  # TODO: Complete this endpoint for taking a venue_id, and using
-  # SQLAlchemy ORM to delete a record. Handle cases where the session commit could fail.
-  flash('hello')
-  # BONUS CHALLENGE: Implement a button to delete a Venue on a Venue Page, have it so that
-  # clicking that button delete it from the db then redirect the user to the homepage
-  return None
+    try:
+        venue = db.session.query(Venue).get(venue_id)
+        db.session.delete(venue)
+        db.session.commit()
+        result = {'success': True}
+    except:
+        db.session.rollback()
+        result = {'success': False}
+    finally:
+        db.session.close()
+    return jsonify(result)
 
 #  Artists
 #  ----------------------------------------------------------------
@@ -324,7 +329,6 @@ def edit_artist_submission(artist_id):
         try:
             genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
             artistobj = db.session.query(Artist).get(artist_id)
-            artistobj.genres = []
             artistobj.name = form.name.data
             artistobj.city = form.city.data
             artistobj.state = form.state.data
@@ -382,7 +386,6 @@ def edit_venue_submission(venue_id):
         try:
             genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
             venueobj = db.session.query(Venue).get(venue_id)
-            venueobj.genres = []
             venueobj.name = form.name.data
             venueobj.city = form.city.data
             venueobj.state = form.state.data

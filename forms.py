@@ -93,7 +93,7 @@ class VenueForm(Form):
         coerce=int
     )
     facebook_link = StringField(
-        'facebook_link', validators=[URL()]
+        'facebook_link', validators=[URL(), Optional()]
     )
     website = StringField(
         'website', validators=[URL(), Optional()]
