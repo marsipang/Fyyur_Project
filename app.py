@@ -1,17 +1,13 @@
 #----------------------------------------------------------------------------#
 # Imports
 #----------------------------------------------------------------------------#
-
-import json
 import dateutil.parser
-import babel
-from flask import Flask, render_template, request, Response, flash, redirect, url_for, jsonify
+import babel, logging
+from flask import Flask, render_template, request, flash, redirect, url_for, jsonify
 from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-import logging
 from logging import Formatter, FileHandler
-from flask_wtf import Form
 from forms import VenueForm, ArtistForm, ShowForm
 from sqlalchemy.sql import func
 from sqlalchemy import case, inspect
@@ -85,11 +81,6 @@ class Venue(db.Model):
         dict_obj['past_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show() == False]
         dict_obj['upcoming_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show()]
         return dict_obj
-#    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-#
-#"upcoming_shows": [],
-#    "past_shows_count": 1,
-#    "upcoming_shows_count": 0,
 
 class Artist(db.Model):
     __tablename__ = 'Artist'
@@ -126,10 +117,6 @@ class Artist(db.Model):
         dict_obj['past_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show() == False]
         dict_obj['upcoming_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show()]
         return dict_obj
-
-    # TODO: implement any missing fields, as a database migration using Flask-Migrate
-
-# TODO Implement Show and Artist models, and complete all model relationships and properties, as a database migration.
 
 class Show(db.Model):
     __tablename__ = 'Show'
