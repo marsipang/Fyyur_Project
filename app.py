@@ -8,7 +8,7 @@ from flask_moment import Moment
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from logging import Formatter, FileHandler
-from forms import VenueForm, ArtistForm, ShowForm
+from forms import VenueForm, ArtistForm, ShowForm, AlbumForm, SongForm
 from sqlalchemy.sql import func
 from sqlalchemy import case, inspect
 #----------------------------------------------------------------------------#
@@ -98,6 +98,8 @@ class Artist(db.Model):
     shows = db.relationship('Show', backref='artist')
     genres = db.relationship('Genre', secondary=artist_genres,
                              backref=db.backref('artistgenres', lazy=True))
+    albums = db.relationship('Album', backref='album')
+    songs = db.relationship('Song', backref='song')
     
     def __repr__(self):
         return f'<{self.id} {self.name}>'
@@ -116,6 +118,8 @@ class Artist(db.Model):
         dict_obj['past_shows_count'] = self.past_show_count()
         dict_obj['past_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show() == False]
         dict_obj['upcoming_shows'] = [i.show_dict() for i in self.shows if i.upcoming_show()]
+        dict_obj['albums'] = [i.album_dict() for i in self.albums]
+        dict_obj['songs'] = [i.name for i in self.songs if i.album_id == None]
         return dict_obj
 
 class Show(db.Model):
@@ -141,6 +145,36 @@ class Show(db.Model):
         dict_obj = {**venue_dict, **artist_dict}
         dict_obj['start_time'] = self.start_time.strftime('%Y-%m-%d %H:%M:%S')
         return dict_obj
+    
+class Album(db.Model):
+    __tablename__ = 'Album'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    release_date = db.Column(db.DateTime, nullable=True)
+    artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'), nullable=True)
+    songs = db.relationship('Song', backref='albumsong')
+    
+    def __repr__(self):
+        return f'<{self.id} {self.name}>'
+
+    def album_dict(self):
+        dict_obj = {c.key: getattr(self, c.key) for c in inspect(self).mapper.column_attrs}
+        dict_obj['release_date'] = self.release_date.strftime('%Y-%m-%d %H:%M:%S')
+        dict_obj['songs'] = [i.name for i in self.songs]
+        return dict_obj
+
+class Song(db.Model):
+    __tablename__ = 'Song'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    release_date = db.Column(db.DateTime, nullable=True)
+    album_id = db.Column(db.Integer, db.ForeignKey('Album.id'), nullable=True)
+    artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'))
+    
+    def __repr__(self):
+        return f'<{self.id} {self.name}>'
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
@@ -494,6 +528,87 @@ def create_show_submission():
     else:
         flash('An error occurred. Show could not be listed.')
         return render_template('forms/new_show.html', form=form)   
+
+#  Albums
+#  ----------------------------------------------------------------
+@app.route('/artist/<artist_id>/create_album')
+def create_album(artist_id):
+    # renders form. do not touch.
+    form = AlbumForm()
+    form.artist_id.default = artist_id
+    form.process()
+    return render_template('forms/new_album.html', form=form)
+
+@app.route('/artist/<artist_id>/create_album', methods=['POST'])
+def create_album_submission(artist_id):
+    # called to create new albums in the db, upon submitting new album listing form
+    form = AlbumForm(request.form)
+    error = False   
+    if form.validate_on_submit():
+        try:
+            album = Album(artist_id = form.artist_id.data,
+                          name = form.name.data,
+                          release_date = form.release_date.data
+                          )
+            db.session.add(album)
+            db.session.commit()
+        except:
+            db.session.rollback()
+            error = True
+        finally:
+            db.session.close()
+        if error:
+            flash('An error occurred. Album could not be listed.')
+            return render_template('forms/new_album.html', form=form)
+        else:
+            return redirect(url_for('show_artist', artist_id=form.artist_id.data))
+    else:
+        flash('An error occurred. Show could not be listed.')
+        return render_template('forms/new_album.html', form=form)   
+
+#  Songs
+#  ----------------------------------------------------------------
+@app.route('/artist/<artist_id>/create_song')
+def create_song(artist_id):
+    # renders form. do not touch.
+    form = SongForm()
+    form.artist_id.default = artist_id
+    form.process()
+    return render_template('forms/new_song.html', form=form)
+
+@app.route('/artist/<artist_id>/create_song', methods=['POST'])
+def create_song_submission(artist_id):
+    # called to create new albums in the db, upon submitting new album listing form
+    form = SongForm(request.form)
+    error = False   
+    if form.validate_on_submit():
+        try:
+            if form.album_id.data == '':
+                song = Song(artist_id = form.artist_id.data,
+                        name = form.name.data,
+                        release_date = form.release_date.data
+                        )
+            else:
+                song = Song(artist_id = form.artist_id.data,
+                            album_id = form.album_id.data,
+                            name = form.name.data,
+                            release_date = form.release_date.data
+                            )
+            db.session.add(song)
+            db.session.commit()
+        except:
+            db.session.rollback()
+            error = True
+        finally:
+            db.session.close()
+        if error:
+            flash('An error occurred. Song could not be listed.')
+            return render_template('forms/new_song.html', form=form)
+        else:
+            return redirect(url_for('show_artist', artist_id=form.artist_id.data))
+    else:
+        flash('An error occurred. Show could not be listed.')
+        return render_template('forms/new_song.html', form=form)   
 
 @app.errorhandler(404)
 def not_found_error(error):

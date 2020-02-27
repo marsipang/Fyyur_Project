@@ -40,6 +40,10 @@
 		{% endif %}
 		<br><br>
 		<a href="{{ url_for( 'edit_artist' , artist_id= artist.id ) }}"><button class="btn btn-primary btn-lg">Edit Artist</button></a>
+		<p>
+		<a href="{{ url_for( 'create_album', artist_id= artist.id ) }}"><button class="btn btn-default btn-lg">Add Album</button></a>
+		<a href="{{ url_for( 'create_song', artist_id= artist.id ) }}"><button class="btn btn-default btn-lg">Add Song</button></a>
+		</p>
 	</div>
 	<div class="col-sm-6">
 		<img src="{{ artist.image_link }}" alt="Venue Image" />
@@ -72,6 +76,37 @@
 		</div>
 		{% endfor %}
 	</div>
+</section>
+<section>
+	<h2 class="monospace">Albums</h2>
+	<div class="row">
+		{% for album in artist.albums %}
+		<div class="col-sm-4">
+			<div class="tile tile-show">
+				<h3>{{ album.name }}</h3>
+				<h5>{{ album.release_date|datetime('full') }}</h5>
+				<h5>Album ID: {{ album.id }}</h5>
+				{% for song in album.songs %}
+					<h5>
+						<i class="fas fa-music"></i>
+						{{ song }}
+					</h5>
+				{% endfor %}
+			</div>
+		</div>
+		{% endfor %}
+	</div>
+</section>
+<section>
+	<h2 class="monospace">Singles</h2>
+	<ul class="items">
+		{% for song in artist.songs %}
+			<li>
+				<i class="fas fa-music"></i>
+				{{ song }}
+			</li>
+		{% endfor %}
+	</ul>
 </section>
 
 {% endblock %}

@@ -191,3 +191,28 @@ class ArtistForm(Form):
     seeking_description = StringField(
         'seeking_description'
     )
+    
+class AlbumForm(Form):
+    artist_id = StringField(
+        'artist_id', validators=[DataRequired()]
+    )
+    name = StringField(
+        'name', validators=[DataRequired()]
+    )
+    release_date = DateTimeField(
+        'release_date'
+    )
+
+class SongForm(Form):
+    artist_id = StringField(
+        'artist_id', validators=[DataRequired()]
+    )
+    album_id = StringField(
+        'album_id'
+    )
+    name = StringField(
+        'name', validators=[DataRequired()]
+    )
+    release_date = DateTimeField(
+        'release_date'
+    )
