@@ -34,6 +34,11 @@
         {{ form.genres(class_ = 'form-control', placeholder='Genres, separated by commas', id=form.state, autofocus = true) }}
       </div>
       <div class="form-group">
+        <label for="other_genre">Genre Name</label>
+        <small>Only fill out if "Other" was selected in Genres</small>
+        {{ form.other_genre(class_ = 'form-control', placeholder='Genres, separated by commas', id=form.state, autofocus = true) }}
+      </div>
+      <div class="form-group">
           <label for="facebook_link">Facebook Link</label>
           {{ form.facebook_link(class_ = 'form-control', placeholder='http://', id=form.state, autofocus = true) }}
       </div>

@@ -3,6 +3,21 @@ from flask_wtf import Form
 from wtforms import StringField, SelectField, SelectMultipleField, DateTimeField, BooleanField
 from wtforms.validators import DataRequired, URL, Optional
 
+class RequiredIfOther(DataRequired):
+    """Validator which makes a field required if another field is set and has a truthy value."""
+    field_flags = ('RequiredIfOther',)
+
+    def __init__(self, other_field_name, message=None, *args, **kwargs):
+        self.other_field_name = other_field_name
+        self.message = message
+
+    def __call__(self, form, field):
+        other_field = form[self.other_field_name]
+        if other_field is None:
+            raise Exception('no field named "%s" in form' % self.other_field_name)
+        if 0 in other_field.data:
+            super(RequiredIfOther, self).__call__(form, field)
+
 class ShowForm(Form):
     artist_id = StringField(
         'artist_id'
@@ -104,6 +119,9 @@ class VenueForm(Form):
         'genres', validators=[DataRequired()],
         coerce=int
     )
+    other_genre = StringField(
+        'other_genre', validators=[RequiredIfOther('genres')]
+    )
     facebook_link = StringField(
         'facebook_link', validators=[URL(), Optional()]
     )
@@ -190,6 +208,9 @@ class ArtistForm(Form):
     genres = SelectMultipleField(
         'genres', validators=[DataRequired()],
         coerce=int
+    )
+    other_genre = StringField(
+        'other_genre', validators=[RequiredIfOther('genres')]
     )
     facebook_link = StringField(
         'facebook_link', validators=[URL(), Optional()]
