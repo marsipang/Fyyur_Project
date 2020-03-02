@@ -15,6 +15,18 @@ class ShowForm(Form):
         validators=[DataRequired()],
         default= datetime.today()
     )
+    end_time = DateTimeField(
+        'end_time',
+        validators=[DataRequired()],
+        default=datetime.today()
+    )
+
+    def validate_on_submit(self):
+        result = super(ShowForm, self).validate()
+        if (self.start_time.data >= self.end_time.data):
+            return False
+        else:
+            return result
 
 class VenueForm(Form):
     name = StringField(

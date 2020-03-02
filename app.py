@@ -129,6 +129,7 @@ class Show(db.Model):
     venue_id = db.Column(db.Integer, db.ForeignKey('Venue.id'))
     artist_id = db.Column(db.Integer, db.ForeignKey('Artist.id'))
     start_time = db.Column(db.DateTime, nullable=False)
+    end_time = db.Column(db.DateTime, nullable=False)
     
     def __repr__(self):
         return f'<{self.id} {self.venue_id} {self.start_time}>'
@@ -175,6 +176,7 @@ class Song(db.Model):
     
     def __repr__(self):
         return f'<{self.id} {self.name}>'
+
 #----------------------------------------------------------------------------#
 # Filters.
 #----------------------------------------------------------------------------#
@@ -506,25 +508,47 @@ def create_show_submission():
     form = ShowForm(request.form)
     error = False   
     if form.validate_on_submit():
-        try:
-            show = Show(venue_id = form.venue_id.data,
-                        artist_id = form.artist_id.data,
-                        start_time = form.start_time.data
-                        )
-            db.session.add(show)
-            db.session.commit()
-        except:
-            db.session.rollback()
-            error = True
-        finally:
-            db.session.close()
-        if error:
-            flash('An error occurred. Show could not be listed.')
+        if db.session.query(db.exists().where((Show.venue_id == form.venue_id.data) &
+        (((form.start_time.data >= Show.start_time) &
+        (form.start_time.data <= Show.end_time)) |
+        ((form.end_time.data >= Show.start_time) &
+        (form.end_time.data <= Show.end_time)) |
+        (Show.start_time.between(form.start_time.data, form.end_time.data)) |
+        (Show.end_time.between(form.start_time.data, form.end_time.data))
+        ))).scalar():
+            flash('''The venue is unavailable during the entered times, please check availability on the Venue's page''')
+            return render_template('forms/new_show.html', form=form)
+        elif db.session.query(db.exists().where((Show.artist_id == form.artist_id.data) &
+        (((form.start_time.data >= Show.start_time) &
+        (form.start_time.data <= Show.end_time)) |
+        ((form.end_time.data >= Show.start_time) &
+        (form.end_time.data <= Show.end_time)) |
+        (Show.start_time.between(form.start_time.data, form.end_time.data)) |
+        (Show.end_time.between(form.start_time.data, form.end_time.data))
+        ))).scalar():
+            flash('''The artist is unavailable during the entered times, please check availability on the Artist's page''')
             return render_template('forms/new_show.html', form=form)
         else:
-            # on successful db insert, flash success
-            flash('Show was successfully listed!')
-            return render_template('pages/home.html')
+            try:
+                show = Show(venue_id = form.venue_id.data,
+                            artist_id = form.artist_id.data,
+                            start_time = form.start_time.data,
+                            end_time = form.end_time.data
+                            )
+                db.session.add(show)
+                db.session.commit()
+            except:
+                db.session.rollback()
+                error = True
+            finally:
+                db.session.close()
+            if error:
+                flash('An error occurred. Show could not be listed.')
+                return render_template('forms/new_show.html', form=form)
+            else:
+                # on successful db insert, flash success
+                flash('Show was successfully listed!')
+                return render_template('pages/home.html')
     else:
         flash('An error occurred. Show could not be listed.')
         return render_template('forms/new_show.html', form=form)   
