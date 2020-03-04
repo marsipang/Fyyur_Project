@@ -38,7 +38,7 @@ class Genre(db.Model):
     __tablename__ = 'Genre'
     
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
+    name = db.Column(db.String, unique=True)
 
     def __repr__(self):
         return f'<{self.id} {self.name}>'
@@ -195,8 +195,10 @@ app.jinja_env.filters['datetime'] = format_datetime
 
 @app.route('/')
 def index():
+    #get the most recently listed 5 venues
     venue_data = Venue.query.order_by(Venue.id.desc()).limit(5).all()
     venues = [i.venue_dict() for i in venue_data]
+    #get the most recently listed 5 artists
     artist_data = Artist.query.order_by(Artist.id.desc()).limit(5).all()
     artists = [i.artist_dict() for i in artist_data]
     return render_template('pages/home.html', venues=venues, artists=artists)
@@ -206,9 +208,11 @@ def index():
 #  ----------------------------------------------------------------
 @app.route('/venues')
 def venues():
+    #get distinct city and states of venues
     data = [{"city":i.city, 
              "state":i.state
              } for i in Venue.query.distinct('city', 'state').order_by('state', 'city').all()]
+    #for each distinct city and state, get data of the venues in those city/state
     for i in range(0, len(data)):
         data[i]['venues'] = [{"id": j.id,
             "name": j.name,
@@ -236,23 +240,30 @@ def show_venue(venue_id):
 #  ----------------------------------------------------------------
 @app.route('/venues/create', methods=['GET'])
 def create_venue_form():
+    #render form
     form = VenueForm()
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     return render_template('forms/new_venue.html', form=form)
 
 @app.route('/venues/create', methods=['POST'])
 def create_venue_submission():
+    #render form
     form = VenueForm(request.form)
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     error = False   
     if form.validate_on_submit():
         try:
+            #get table objects of the selected genres
             genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
+            #enter new genre into database
             if 0 in form.genres.data:
                 new_genre = Genre(name = form.other_genre.data)
                 genre_data = genre_data + [new_genre]
+            #enter a new venue into database
             venue = Venue(name = form.name.data,
                           city = form.city.data,
                           state = form.state.data,
@@ -273,22 +284,25 @@ def create_venue_submission():
         finally:
             db.session.close()
         if error:
+            # if there's an error, flash message and stay on page
             flash('An error occurred. Venue ' + form.name.data + ' could not be listed.')
             return render_template('forms/new_venue.html', form=form)
         else:
-            # on successful db insert, flash success
+            # on successful db insert, flash success and take to home page
             flash('Venue ' + request.form['name'] + ' was successfully listed!')
             return render_template('pages/home.html')
     else:
+        # if form doesn't pass validation, flash message and stay on page
         flash('An error occurred. Venue ' + form.name.data + ' could not be listed.')
         return render_template('forms/new_venue.html', form=form)
-  # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
+    # see: http://flask.pocoo.org/docs/1.0/patterns/flashing/
       
 #  Delete Venue
 #  ----------------------------------------------------------------
 @app.route('/venues/<venue_id>', methods=['DELETE'])
 def delete_venue(venue_id):
     try:
+        #find venue record to delete and delete
         venue = db.session.query(Venue).get(venue_id)
         db.session.delete(venue)
         db.session.commit()
@@ -298,13 +312,16 @@ def delete_venue(venue_id):
         result = {'success': False}
     finally:
         db.session.close()
+    #return result so the page can either error or reroute
     return jsonify(result)
 
 #  Update Venue
 #  ----------------------------------------------------------------
 @app.route('/venues/<int:venue_id>/edit', methods=['GET'])
 def edit_venue(venue_id):
+    #render form
     form = VenueForm()
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     venue = Venue.query.get(venue_id)
@@ -325,14 +342,18 @@ def edit_venue(venue_id):
 
 @app.route('/venues/<int:venue_id>/edit', methods=['POST'])
 def edit_venue_submission(venue_id):
+    #render form
     form = VenueForm(request.form)
+    #get the genres that are in the database and put them as the choices for the genre part of the forms
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     venue = Venue.query.get(venue_id)
     error = False 
     if form.validate_on_submit():
         try:
+            #get table objects of the selected genres
             genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
+            #update venue record
             venueobj = db.session.query(Venue).get(venue_id)
             venueobj.name = form.name.data
             venueobj.city = form.city.data
@@ -345,6 +366,7 @@ def edit_venue_submission(venue_id):
             venueobj.website = form.website.data
             venueobj.seeking_talent = form.seeking_talent.data
             venueobj.seeking_description = form.seeking_description.data
+            #if there's a new genre, add it to the database and then update venue record to have it
             if 0 in form.genres.data:
                 new_genre = Genre(name = form.other_genre.data)
                 db.session.add(new_genre)
@@ -356,9 +378,11 @@ def edit_venue_submission(venue_id):
         finally:
             db.session.close()
         if error:
+            #if there's an error, flash message and stay on page
             flash('An error occurred. Venue ' + form.name.data + ' could not be edited.')
             return render_template('forms/edit_venue.html', form=form, venue=venue)
         else:
+            #if success, reroute to the venue page
             return redirect(url_for('show_venue', venue_id=venue_id))
     else:
         return render_template('forms/edit_venue.html', form=form, venue=venue)
@@ -367,6 +391,7 @@ def edit_venue_submission(venue_id):
 #  ----------------------------------------------------------------
 @app.route('/artists')
 def artists():
+    #get all artists
     data = Artist.query.order_by('name').all()
     return render_template('pages/artists.html', artists=data)
 
@@ -381,7 +406,7 @@ def search_artists():
 
 @app.route('/artists/<int:artist_id>')
 def show_artist(artist_id):
-  # shows the venue page with the given venue_id
+  # shows the artist page with the given artist_id
   artist_data = Artist.query.get(artist_id)
   data = artist_data.artist_dict()
   return render_template('pages/show_artist.html', artist=data)
@@ -390,23 +415,30 @@ def show_artist(artist_id):
 #  ----------------------------------------------------------------
 @app.route('/artists/create', methods=['GET'])
 def create_artist_form():
+    #render form
     form = ArtistForm()
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     return render_template('forms/new_artist.html', form=form)
 
 @app.route('/artists/create', methods=['POST'])
 def create_artist_submission():
+    #render form
     form = ArtistForm(request.form)
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     error = False   
     if form.validate_on_submit():
         try:
+            #get table objects of the selected genres
             genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
+            #if there's a new genre, add it to the database
             if 0 in form.genres.data:
                 new_genre = Genre(name = form.other_genre.data)
                 genre_data = genre_data + [new_genre]
+            #create new artist record in database
             artist = Artist(name = form.name.data,
                           city = form.city.data,
                           state = form.state.data,
@@ -426,13 +458,15 @@ def create_artist_submission():
         finally:
             db.session.close()
         if error:
+            #if error, flash message and stay on page
             flash('An error occurred. Artist ' + form.name.data + ' could not be listed.')
             return render_template('forms/new_artist.html', form=form)
         else:
-            # on successful db insert, flash success
+            # on successful db insert, flash success and display home page
             flash('Artist ' + request.form['name'] + ' was successfully listed!')
             return render_template('pages/home.html')
     else:
+        #if form isn't valid, flash message and stay on page
         flash('An error occurred. Artist ' + form.name.data + ' could not be listed.')
         return render_template('forms/new_artist.html', form=form)  
     
@@ -440,7 +474,9 @@ def create_artist_submission():
 #  ----------------------------------------------------------------
 @app.route('/artists/<int:artist_id>/edit', methods=['GET'])
 def edit_artist(artist_id):
+    #render form
     form = ArtistForm()
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     artist = Artist.query.get(artist_id)
@@ -460,14 +496,18 @@ def edit_artist(artist_id):
 
 @app.route('/artists/<int:artist_id>/edit', methods=['POST'])
 def edit_artist_submission(artist_id):
+    #render form
     form = ArtistForm(request.form)
+    #get the genres that are in the database and put them as the choices for the genre part of the form
     genre_choices = Genre.query.order_by('name').all()
     form.genres.choices = [(i.id, i.name) for i in genre_choices] + [(0, 'Other')]
     artist = Artist.query.get(artist_id)
     error = False 
     if form.validate_on_submit():
         try:
+            #get table objects of the selected genres
             genre_data = Genre.query.filter(Genre.id.in_(form.genres.data)).order_by('id').all()
+            #update artist record in database
             artistobj = db.session.query(Artist).get(artist_id)
             artistobj.name = form.name.data
             artistobj.city = form.city.data
@@ -479,6 +519,7 @@ def edit_artist_submission(artist_id):
             artistobj.website = form.website.data
             artistobj.seeking_venue = form.seeking_venue.data
             artistobj.seeking_description = form.seeking_description.data
+            #if there's a new genre, add it to the database and then update artist record to have it
             if 0 in form.genres.data:
                 new_genre = Genre(name = form.other_genre.data)
                 db.session.add(new_genre)
@@ -490,9 +531,11 @@ def edit_artist_submission(artist_id):
         finally:
             db.session.close()
         if error:
+            #if error, flash message and stay on page
             flash('An error occurred. Artist ' + form.name.data + ' could not be edited.')
             return render_template('forms/edit_artist.html', form=form, artist=artist)
         else:
+            #if success, reroute to artist page
             return redirect(url_for('show_artist', artist_id=artist_id))
     else:
         return render_template('forms/edit_artist.html', form=form, artist=artist)  
@@ -514,9 +557,12 @@ def create_shows():
 @app.route('/shows/create', methods=['POST'])
 def create_show_submission():
     # called to create new shows in the db, upon submitting new show listing form
+    #render form
     form = ShowForm(request.form)
     error = False   
     if form.validate_on_submit():
+        #check to make sure the selected times for the selected venue don't overlap with a booking 
+        #for that venue already. If it is, then flash message and stay on page
         if db.session.query(db.exists().where((Show.venue_id == form.venue_id.data) &
         (((form.start_time.data >= Show.start_time) &
         (form.start_time.data <= Show.end_time)) |
@@ -527,6 +573,8 @@ def create_show_submission():
         ))).scalar():
             flash('''The venue is unavailable during the entered times, please check availability on the Venue's page''')
             return render_template('forms/new_show.html', form=form)
+        #check to make sure the selected times for the selected artist don't overlap with a booking 
+        #for that artist already. If it is, then flash message and stay on page
         elif db.session.query(db.exists().where((Show.artist_id == form.artist_id.data) &
         (((form.start_time.data >= Show.start_time) &
         (form.start_time.data <= Show.end_time)) |
@@ -539,6 +587,7 @@ def create_show_submission():
             return render_template('forms/new_show.html', form=form)
         else:
             try:
+                #if show isn't overlapping and can be booked, then create record for show and put in database
                 show = Show(venue_id = form.venue_id.data,
                             artist_id = form.artist_id.data,
                             start_time = form.start_time.data,
@@ -552,10 +601,11 @@ def create_show_submission():
             finally:
                 db.session.close()
             if error:
+                #if there's an error, flash message and stay on page
                 flash('An error occurred. Show could not be listed.')
                 return render_template('forms/new_show.html', form=form)
             else:
-                # on successful db insert, flash success
+                # on successful db insert, flash success and show home page
                 flash('Show was successfully listed!')
                 return render_template('pages/home.html')
     else:
@@ -566,8 +616,9 @@ def create_show_submission():
 #  ----------------------------------------------------------------
 @app.route('/artist/<artist_id>/create_album')
 def create_album(artist_id):
-    # renders form. do not touch.
+    # renders form
     form = AlbumForm()
+    #default artist_id field to the artist_id the page was clicked in through
     form.artist_id.default = artist_id
     form.process()
     return render_template('forms/new_album.html', form=form)
@@ -575,10 +626,12 @@ def create_album(artist_id):
 @app.route('/artist/<artist_id>/create_album', methods=['POST'])
 def create_album_submission(artist_id):
     # called to create new albums in the db, upon submitting new album listing form
+    #render form
     form = AlbumForm(request.form)
     error = False   
     if form.validate_on_submit():
         try:
+            #create record for album in database
             album = Album(artist_id = form.artist_id.data,
                           name = form.name.data,
                           release_date = form.release_date.data
@@ -591,9 +644,11 @@ def create_album_submission(artist_id):
         finally:
             db.session.close()
         if error:
+            #if error, flash message and stay on page
             flash('An error occurred. Album could not be listed.')
             return render_template('forms/new_album.html', form=form)
         else:
+            #if success, reroute to the album's artist's page
             return redirect(url_for('show_artist', artist_id=form.artist_id.data))
     else:
         flash('An error occurred. Show could not be listed.')
@@ -604,7 +659,9 @@ def create_album_submission(artist_id):
 @app.route('/artist/<artist_id>/create_song')
 def create_song(artist_id):
     # renders form. do not touch.
+    #render form
     form = SongForm()
+    #default artist_id field to the artist_id the page was clicked in through
     form.artist_id.default = artist_id
     form.process()
     return render_template('forms/new_song.html', form=form)
@@ -612,15 +669,18 @@ def create_song(artist_id):
 @app.route('/artist/<artist_id>/create_song', methods=['POST'])
 def create_song_submission(artist_id):
     # called to create new albums in the db, upon submitting new album listing form
+    #render form
     form = SongForm(request.form)
     error = False   
     if form.validate_on_submit():
         try:
+            #if there is an album_id entered, then create song record in database with the album_id
             if form.album_id.data == '':
                 song = Song(artist_id = form.artist_id.data,
                         name = form.name.data,
                         release_date = form.release_date.data
                         )
+            #if there is no album_id entered, then create song record in database with album_id set to Null
             else:
                 song = Song(artist_id = form.artist_id.data,
                             album_id = form.album_id.data,
@@ -635,9 +695,11 @@ def create_song_submission(artist_id):
         finally:
             db.session.close()
         if error:
+            #if error, flash message and stay on page
             flash('An error occurred. Song could not be listed.')
             return render_template('forms/new_song.html', form=form)
         else:
+            #if success, reroute to the song's artist's page
             return redirect(url_for('show_artist', artist_id=form.artist_id.data))
     else:
         flash('An error occurred. Show could not be listed.')
